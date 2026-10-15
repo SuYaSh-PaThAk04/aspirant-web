@@ -35,7 +35,7 @@ export function PdfPreview({ url }: { url: string }) {
     (async () => {
       const pdfjs = await import("pdfjs-dist");
       pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-      const loadingTask = pdfjs.getDocument({ url, isEvalSupported: false });
+      const loadingTask = pdfjs.getDocument({ url });
       destroyDoc = () => loadingTask.destroy();
       const pdf = await loadingTask.promise;
       if (cancelled) return;

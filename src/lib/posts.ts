@@ -308,7 +308,9 @@ async function hydrate(rows: IndexDoc[], comments: "all" | "preview" | "none", v
     .find({ _id: { $in: postIds } })
     .toArray();
   const byId = new Map(found.map((post) => [String(post._id), post]));
-  const ordered = postIds.map((id) => byId.get(String(id))).filter((post): post is PostDoc => post !== undefined);
+  const ordered = postIds
+    .map((id) => byId.get(String(id)))
+    .filter((post): post is NonNullable<typeof post> => post !== undefined);
   return decorate(ordered, comments, indexById, viewerId);
 }
 
