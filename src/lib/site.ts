@@ -10,13 +10,22 @@ export function postPath(postId: string) {
   return `/post/${postId}`;
 }
 
+export function feedPostPath(slug: string) {
+  return `/feed/post/${slug}`;
+}
+
+export function postHref(post: { postId: string; slug?: string }) {
+  const slug = post.slug?.trim();
+  return slug ? feedPostPath(slug) : postPath(post.postId);
+}
+
 export function postIdFromSlug(slug: string) {
   const match = slug.match(/([a-f0-9]{24})$/i);
   return match ? match[1].toLowerCase() : null;
 }
 
-export function absolutePostUrl(postId: string) {
-  return `${siteUrl()}${postPath(postId)}`;
+export function absolutePostUrl(post: { postId: string; slug?: string }) {
+  return `${siteUrl()}${postHref(post)}`;
 }
 
 export function appPostUrl(postId: string) {

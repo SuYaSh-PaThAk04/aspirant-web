@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Users } from "lucide-react";
-import { AppBanner } from "@/components/AppBanner";
+import { AppBanner, OpenAppPopup } from "@/components/AppBanner";
 import { useAuth } from "@/components/AuthProvider";
 import { JoinPanel } from "@/components/JoinPanel";
 import { PostActions } from "@/components/PostActions";
@@ -12,7 +12,7 @@ import { FeedCardSkeleton } from "@/components/Shimmer";
 import { SiteHeader } from "@/components/SiteHeader";
 import type { PublicChannel } from "@/lib/channels";
 import type { PublicAuthor, PublicPost } from "@/lib/posts";
-import { channelPath, postPath } from "@/lib/site";
+import { channelPath, postHref } from "@/lib/site";
 
 function displayName(author: PublicAuthor | null) {
   return author?.name || author?.username || "Aspirant";
@@ -54,7 +54,7 @@ function FeedCard({ post }: { post: PublicPost }) {
   return (
     <li>
       <div className="border-line rounded-2xl border bg-card p-4 shadow-sm">
-        <Link href={postPath(post.postId)} className="block">
+        <Link href={postHref(post)} className="block">
           <div className="flex gap-3">
             <Avatar author={post.author} />
             <div className="min-w-0">
@@ -69,7 +69,8 @@ function FeedCard({ post }: { post: PublicPost }) {
               </p>
             </div>
           </div>
-          <p className="mt-3 text-sm leading-5 whitespace-pre-wrap">{post.text}</p>
+          {post.title ? <h2 className="text-heading mt-3 text-base leading-5 font-bold">{post.title}</h2> : null}
+          <p className={`${post.title ? "mt-2" : "mt-3"} text-sm leading-5 whitespace-pre-wrap`}>{post.text}</p>
           {images.length ? (
             <img src={images[0].url} alt="" className="mt-3 block h-auto max-w-full rounded-xl" />
           ) : null}
@@ -78,7 +79,8 @@ function FeedCard({ post }: { post: PublicPost }) {
           likes={post.likes}
           liked={post.liked}
           commentCount={post.commentCount}
-          href={postPath(post.postId)}
+          href={postHref(post)}
+          postId={post.postId}
         />
       </div>
     </li>
@@ -247,8 +249,9 @@ export function DiscussionsView({
   return (
     <div className="min-h-screen">
       <SiteHeader />
+      <OpenAppPopup />
       <div className="grid w-full gap-3 px-3 py-3 lg:grid-cols-[360px_minmax(0,1fr)_260px]">
-        <aside className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-16 lg:h-[calc(100vh-5.5rem)] lg:self-start">
+        <aside className="hidden min-w-0 flex-col gap-3 lg:sticky lg:top-16 lg:flex lg:h-[calc(100vh-5.5rem)] lg:self-start">
           {user ? null : <JoinPanel onContinue={() => login()} />}
           <AppBanner tall={Boolean(user)} />
         </aside>

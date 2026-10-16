@@ -19,6 +19,8 @@ export type PublicComment = {
 
 export type PublicPost = {
   postId: string;
+  title: string;
+  slug: string;
   text: string;
   createdAt: string | null;
   roomId: string;
@@ -53,6 +55,8 @@ type CommentDoc = {
 };
 
 type PostDoc = Document & {
+  title?: string;
+  slug?: string;
   text?: string;
   senderId?: string;
   roomId?: string;
@@ -207,6 +211,8 @@ function cardOf(
   const visible = visibleComments(post.comments ?? []);
   return {
     postId: String(post._id),
+    title: String(post.title ?? "").replace(/\s+/g, " ").trim(),
+    slug: String(post.slug ?? "").trim().toLowerCase(),
     text: plainText(post.text),
     createdAt: iso(post.createdAt),
     roomId: String(post.roomId ?? ""),
@@ -443,13 +449,11 @@ export async function createPost(input: { roomId: string; senderId: string; text
   return card ?? null;
 }
 
-export const getPublicPost = cache(async (postId: string, viewerId?: string | null) => {
-  const id = asObjectId(postId);
+async function presentMessage(message: PostDoc, viewerId?: string | null) {
+  const id = asObjectId(message._id);
   if (!id) return null;
   const db = await getDb();
-  const message = await db.collection<PostDoc>("room_messages").findOne({ _id: id, ...liveMatch });
-  if (!message) return null;
-  const values = postIdValues(postId);
+  const values = postIdValues(String(id));
   const row = values
     ? await db.collection<IndexDoc>(TIER1).findOne({ postId: { $in: values }, ...publicFilter })
     : null;
@@ -457,6 +461,36 @@ export const getPublicPost = cache(async (postId: string, viewerId?: string | nu
   if (row && isPublicDecision(row)) indexById.set(String(id), row);
   const [post] = await decorate([message], "all", indexById, viewerId);
   return post ?? null;
+}
+
+export async function getPostSlug(postId: string) {
+  const id = asObjectId(postId);
+  if (!id) return null;
+  const db = await getDb();
+  const message = await db.collection<PostDoc>("room_messages").findOne(
+    { _id: id, ...liveMatch },
+    { projection: { slug: 1 } },
+  );
+  const slug = String(message?.slug ?? "").trim().toLowerCase();
+  return slug || null;
+}
+
+export const getPublicPostBySlug = cache(async (slug: string, viewerId?: string | null) => {
+  const clean = slug.trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(clean)) return null;
+  const db = await getDb();
+  const message = await db.collection<PostDoc>("room_messages").findOne({ slug: clean, ...liveMatch });
+  if (!message) return null;
+  return presentMessage(message, viewerId);
+});
+
+export const getPublicPost = cache(async (postId: string, viewerId?: string | null) => {
+  const id = asObjectId(postId);
+  if (!id) return null;
+  const db = await getDb();
+  const message = await db.collection<PostDoc>("room_messages").findOne({ _id: id, ...liveMatch });
+  if (!message) return null;
+  return presentMessage(message, viewerId);
 });
 
 export async function listRelatedPosts(post: PublicPost, viewerId?: string | null) {
@@ -497,5 +531,10 @@ export async function listSitemapPosts() {
     .limit(SITEMAP_LIMIT)
     .toArray();
   const posts = await hydrate(rows, "none");
-  return posts.map((post) => ({ postId: post.postId, text: post.text, createdAt: post.createdAt }));
+  return posts.map((post) => ({
+    postId: post.postId,
+    slug: post.slug,
+    text: post.text,
+    createdAt: post.createdAt,
+  }));
 }

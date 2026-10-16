@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Heart, MessageCircle } from "lucide-react";
-import { AppBanner } from "@/components/AppBanner";
+import { AppBanner, OpenAppPopup } from "@/components/AppBanner";
 import { useAuth } from "@/components/AuthProvider";
 import { JoinPanel } from "@/components/JoinPanel";
 import type { WebAction } from "@/components/LoginSheet";
@@ -13,7 +13,7 @@ import { isPdf, PdfPreview } from "@/components/PdfPreview";
 import { PostActions } from "@/components/PostActions";
 import { SiteHeader } from "@/components/SiteHeader";
 import type { PublicComment, PublicPost } from "@/lib/posts";
-import { postPath } from "@/lib/site";
+import { postHref } from "@/lib/site";
 import { track, trackMixpanel } from "@/lib/track";
 
 let lastPost = "";
@@ -217,12 +217,13 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
   }
 
   const name = displayName(post.author);
-  const postHref = postPath(post.postId);
+  const href = postHref(post);
   const visibleComments = showAllComments ? post.comments : post.comments.slice(0, 10);
 
   return (
     <div className="min-h-screen">
       <SiteHeader />
+      <OpenAppPopup />
 
       <div
         className={`grid w-full gap-3 px-3 py-3 ${
@@ -231,7 +232,7 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
             : "lg:grid-cols-[360px_minmax(0,1fr)]"
         }`}
       >
-        <aside className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-16 lg:h-[calc(100vh-5.5rem)] lg:self-start">
+        <aside className="hidden min-w-0 flex-col gap-3 lg:sticky lg:top-16 lg:flex lg:h-[calc(100vh-5.5rem)] lg:self-start">
           {user ? null : <JoinPanel onContinue={() => login()} />}
           <AppBanner tall={Boolean(user)} />
         </aside>
@@ -256,7 +257,8 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
           </div>
         </div>
 
-        <p className="mt-3 text-sm leading-5 whitespace-pre-wrap">{post.text}</p>
+        {post.title ? <h1 className="text-heading mt-3 text-lg leading-6 font-bold">{post.title}</h1> : null}
+        <p className={`${post.title ? "mt-2" : "mt-3"} text-sm leading-5 whitespace-pre-wrap`}>{post.text}</p>
 
         {post.attachments.length ? (
           <div className="mt-3 space-y-2">
@@ -298,7 +300,8 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
           likes={likeCount}
           commentCount={post.commentCount}
           liked={liked}
-          href={postHref}
+          href={href}
+          postId={post.postId}
           onLike={() => ask({ type: "like" })}
           variant="pills"
         />
@@ -356,11 +359,11 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
             <ul className="border-line mt-2 divide-y divide-line overflow-hidden rounded-2xl border bg-card">
               {related.map((item) => (
                 <li key={item.postId}>
-                  <Link href={postPath(item.postId)} className="block px-4 py-3">
+                  <Link href={postHref(item)} className="block px-4 py-3">
                     <p className="text-muted truncate text-xs">
                       {[item.room || displayName(item.author), formatWhen(item.createdAt)].filter(Boolean).join(" · ")}
                     </p>
-                    <p className="mt-1 line-clamp-3 text-sm leading-5 font-medium">{item.text}</p>
+                    <p className="mt-1 line-clamp-3 text-sm leading-5 font-medium">{item.title || item.text}</p>
                     <p className="text-muted mt-2 flex items-center gap-3 text-xs">
                       <span className="inline-flex items-center gap-1">
                         <Heart size={14} className={item.liked ? "fill-like text-like" : undefined} />

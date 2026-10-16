@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { currentUser } from "@/lib/current-user";
 import { PostView } from "@/components/PostView";
 import { getPublicPost, listRelatedPosts, type PublicComment, type PublicPost } from "@/lib/posts";
-import { absolutePostUrl } from "@/lib/site";
+import { absolutePostUrl, feedPostPath } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +11,10 @@ function titleFrom(text: string) {
   const clean = text.replace(/\s+/g, " ").trim();
   if (!clean) return "Discussion";
   return clean.length > 70 ? `${clean.slice(0, 67).trim()}…` : clean;
+}
+
+function headline(post: PublicPost) {
+  return post.title || titleFrom(post.text);
 }
 
 function descriptionFrom(text: string) {
@@ -35,10 +39,10 @@ function jsonLd(post: PublicPost) {
   return JSON.stringify({
     "@context": "https://schema.org",
     "@type": "DiscussionForumPosting",
-    headline: titleFrom(post.text),
+    headline: headline(post),
     text: post.text,
     datePublished: post.createdAt ?? undefined,
-    url: absolutePostUrl(post.postId),
+    url: absolutePostUrl(post),
     author: {
       "@type": "Person",
       name: post.author?.name || post.author?.username || "Aspirant",
@@ -58,9 +62,9 @@ export async function generateMetadata({
   if (!postId) return { title: "Discussion" };
   const post = await getPublicPost(postId);
   if (!post) return { title: "Discussion" };
-  const title = titleFrom(post.text);
+  const title = headline(post);
   const description = descriptionFrom(post.text);
-  const url = absolutePostUrl(post.postId);
+  const url = absolutePostUrl(post);
   return {
     title,
     description,
@@ -76,6 +80,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
   const viewerId = (await currentUser())?.id ?? null;
   const post = await getPublicPost(postId, viewerId);
   if (!post) notFound();
+  if (post.slug) permanentRedirect(feedPostPath(post.slug));
   const related = await listRelatedPosts(post, viewerId);
 
   return (

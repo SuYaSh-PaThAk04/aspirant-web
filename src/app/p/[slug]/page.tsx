@@ -1,5 +1,6 @@
 import { notFound, permanentRedirect } from "next/navigation";
-import { postIdFromSlug, postPath } from "@/lib/site";
+import { getPostSlug } from "@/lib/posts";
+import { feedPostPath, postIdFromSlug, postPath } from "@/lib/site";
 
 export default async function LegacyPostRedirect({
   params,
@@ -9,5 +10,6 @@ export default async function LegacyPostRedirect({
   const { slug } = await params;
   const postId = postIdFromSlug(slug);
   if (!postId) notFound();
-  permanentRedirect(postPath(postId));
+  const stored = await getPostSlug(postId);
+  permanentRedirect(stored ? feedPostPath(stored) : postPath(postId));
 }

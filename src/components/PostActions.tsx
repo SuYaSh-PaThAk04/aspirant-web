@@ -3,12 +3,8 @@
 import { Heart, MessageCircle, Share2 } from "lucide-react";
 import Link from "next/link";
 import { track } from "@/lib/track";
-import { postIdFromSlug } from "@/lib/site";
-
-function sharePost(path: string) {
+function sharePost(path: string, postId: string) {
   const url = new URL(path, window.location.origin).toString();
-  const slug = path.split("/").pop()?.split(/[?#]/)[0] ?? "";
-  const postId = postIdFromSlug(slug);
   const shared = () => {
     if (postId) track("post_shared", { path, postId });
   };
@@ -24,6 +20,7 @@ export function PostActions({
   commentCount,
   liked = false,
   href,
+  postId,
   onLike,
   variant = "inline",
 }: {
@@ -31,6 +28,7 @@ export function PostActions({
   commentCount: number;
   liked?: boolean;
   href: string;
+  postId: string;
   onLike?: () => void;
   variant?: "inline" | "pills";
 }) {
@@ -58,7 +56,7 @@ export function PostActions({
         <MessageCircle size={18} />
         {commentCount}
       </Link>
-      <button type="button" onClick={() => sharePost(href)} className={itemClass} aria-label="Share">
+      <button type="button" onClick={() => sharePost(href, postId)} className={itemClass} aria-label="Share">
         <Share2 size={18} />
         {pills ? "Share" : null}
       </button>
