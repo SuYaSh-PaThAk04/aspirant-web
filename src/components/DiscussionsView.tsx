@@ -247,7 +247,7 @@ export function DiscussionsView({
   }, [cursor, failed, loadMore]);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen w-full">
       <SiteHeader />
       <OpenAppPopup />
       <div className="grid w-full gap-3 px-3 py-3 lg:grid-cols-[360px_minmax(0,1fr)_260px]">

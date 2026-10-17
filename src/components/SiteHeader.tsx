@@ -12,7 +12,7 @@ function SearchField({ query }: { query: string }) {
   return (
     <form
       action="/"
-      className="relative"
+      className="relative block w-full"
       onSubmit={(event) => {
         const q = String(new FormData(event.currentTarget).get("q") ?? "").trim();
         if (q) return;
@@ -75,17 +75,18 @@ export function SiteHeader() {
   }, [user]);
 
   return (
-    <header className="border-line bg-canvas/90 sticky inset-x-0 top-0 z-10 w-full border-b backdrop-blur">
-      <div className="flex w-full items-center gap-3 px-3 py-3">
-        <Link href="/" className="text-heading shrink-0 text-base font-bold whitespace-nowrap">
+    <header className="sticky top-0 z-10 w-screen max-w-none">
+      <div className="border-line bg-canvas/90 absolute inset-0 border-b backdrop-blur" />
+      <div className="relative grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3">
+        <Link href="/" className="text-heading text-base font-bold whitespace-nowrap">
           Aspirant Adda
         </Link>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           <Suspense fallback={<SearchField query="" />}>
             <HeaderSearch />
           </Suspense>
         </div>
-        <div className="ml-auto flex shrink-0 items-center">
+        <div className="flex items-center">
           {!ready ? (
             <ShimmerBar className="h-9 w-28 rounded-full" />
           ) : user ? (

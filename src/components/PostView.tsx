@@ -221,7 +221,7 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
   const visibleComments = showAllComments ? post.comments : post.comments.slice(0, 10);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen w-full">
       <SiteHeader />
       <OpenAppPopup />
 
