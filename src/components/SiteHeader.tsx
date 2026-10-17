@@ -75,17 +75,17 @@ export function SiteHeader() {
   }, [user]);
 
   return (
-    <header className="border-line bg-canvas/90 sticky top-0 z-10 border-b backdrop-blur">
-      <div className="grid w-full grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 px-3 py-3 lg:grid-cols-[1fr_minmax(0,32rem)_1fr]">
-        <Link href="/" className="text-heading justify-self-start text-base font-bold whitespace-nowrap">
+    <header className="border-line bg-canvas/90 sticky inset-x-0 top-0 z-10 w-full border-b backdrop-blur">
+      <div className="flex w-full items-center gap-3 px-3 py-3">
+        <Link href="/" className="text-heading shrink-0 text-base font-bold whitespace-nowrap">
           Aspirant Adda
         </Link>
-        <div className="col-span-2 min-w-0 lg:col-span-1 lg:col-start-2 lg:row-start-1">
+        <div className="min-w-0 flex-1">
           <Suspense fallback={<SearchField query="" />}>
             <HeaderSearch />
           </Suspense>
         </div>
-        <div className="col-start-2 row-start-1 flex items-center justify-self-end lg:col-start-3">
+        <div className="ml-auto flex shrink-0 items-center">
           {!ready ? (
             <ShimmerBar className="h-9 w-28 rounded-full" />
           ) : user ? (
