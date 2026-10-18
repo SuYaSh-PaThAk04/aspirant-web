@@ -248,7 +248,7 @@ export function DiscussionsView({
 
   return (
     <div className="min-h-screen w-full">
-      <SiteHeader />
+      <SiteHeader discussionTab />
       <OpenAppPopup />
       <div className="grid w-full gap-3 px-3 py-3 lg:grid-cols-[360px_minmax(0,1fr)_260px]">
         <aside className="hidden min-w-0 flex-col gap-3 lg:sticky lg:top-16 lg:flex lg:h-[calc(100vh-5.5rem)] lg:self-start">
@@ -272,7 +272,7 @@ export function DiscussionsView({
             </p>
           ) : null}
           {channel || query ? (
-            <Link href="/" className="text-accent mt-2 inline-block px-1 text-sm font-medium">
+            <Link href="/feed" className="text-accent mt-2 inline-block px-1 text-sm font-medium">
               {query ? "Clear search" : "All discussions"}
             </Link>
           ) : null}
