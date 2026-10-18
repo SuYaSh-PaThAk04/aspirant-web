@@ -240,7 +240,7 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
         <div className="min-w-0">
       <article className="border-line rounded-2xl border bg-card p-4 shadow-sm">
         <div className="flex items-start gap-3">
-          <Link href="/" className="text-muted mt-1 shrink-0" aria-label="Back to discussions">
+          <Link href="/feed" className="text-muted mt-1 shrink-0" aria-label="Back to discussions">
             <ChevronLeft size={20} />
           </Link>
           <Avatar author={post.author} />
