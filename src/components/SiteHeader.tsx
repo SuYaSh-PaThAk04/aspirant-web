@@ -2,7 +2,7 @@
 
 import { Moon, Search, Sun, User } from "lucide-react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { ShimmerBar } from "@/components/Shimmer";
@@ -11,13 +11,13 @@ function SearchField({ query }: { query: string }) {
   const router = useRouter();
   return (
     <form
-      action="/"
+      action="/feed"
       className="relative block w-full"
       onSubmit={(event) => {
         const q = String(new FormData(event.currentTarget).get("q") ?? "").trim();
         if (q) return;
         event.preventDefault();
-        router.push("/");
+        router.push("/feed");
       }}
     >
       <Search size={16} className="text-muted pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" />
@@ -37,7 +37,9 @@ function HeaderSearch() {
   return <SearchField key={query} query={query} />;
 }
 
-export function SiteHeader() {
+export function SiteHeader({ discussionTab = false }: { discussionTab?: boolean }) {
+  const pathname = usePathname();
+  const discussionsOpen = pathname === "/feed" || pathname.startsWith("/c/");
   const { user, ready, login, logout } = useAuth();
   const label = user?.name || (user?.username ? `@${user.username}` : "Aspirant");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -78,9 +80,20 @@ export function SiteHeader() {
     <header className="sticky top-0 z-10 w-screen max-w-none">
       <div className="border-line bg-canvas/90 absolute inset-0 border-b backdrop-blur" />
       <div className="relative grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3">
-        <Link href="/" className="text-heading text-base font-bold whitespace-nowrap">
-          Aspirant Adda
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/feed" className="text-heading text-base font-bold whitespace-nowrap">
+            Aspirant Adda
+          </Link>
+          {discussionTab ? (
+            <Link
+              href="/feed"
+              aria-current={discussionsOpen ? "page" : undefined}
+              className="bg-accent text-on-primary rounded-full px-3 py-1 text-sm font-bold whitespace-nowrap"
+            >
+              Discussions
+            </Link>
+          ) : null}
+        </div>
         <div className="min-w-0">
           <Suspense fallback={<SearchField query="" />}>
             <HeaderSearch />
