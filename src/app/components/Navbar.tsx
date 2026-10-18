@@ -131,12 +131,6 @@ export default function Navbar({ variant = "hero" }: NavbarProps) {
             >
               About Us
             </Link>
-            <a
-              href="/#courses"
-              className={`rounded-full border px-4 py-1.5 font-body text-sm font-medium transition-all duration-200 ${linkClass}`}
-            >
-              Courses
-            </a>
           </div>
         </div>
 
@@ -191,13 +185,6 @@ export default function Navbar({ variant = "hero" }: NavbarProps) {
             >
               About Us
             </Link>
-            <a
-              href="/#courses"
-              onClick={closeMenu}
-              className="rounded-xl px-4 py-3 font-body text-base font-medium text-brand transition-colors hover:bg-brand/5"
-            >
-              Courses
-            </a>
             <a
               href="/#become-mentor"
               onClick={closeMenu}
