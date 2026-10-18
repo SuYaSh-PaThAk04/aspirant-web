@@ -9,7 +9,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const posts = await listSitemapPosts();
     return [
-      { url: home, changeFrequency: "hourly", priority: 1 },
+      { url: home, changeFrequency: "weekly", priority: 1 },
+      { url: `${home}/feed`, changeFrequency: "hourly", priority: 0.9 },
       ...posts.map((post) => ({
         url: absolutePostUrl(post),
         lastModified: post.createdAt ? new Date(post.createdAt) : undefined,
