@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Heart, MessageCircle } from "lucide-react";
@@ -11,8 +11,10 @@ import type { WebAction } from "@/components/LoginSheet";
 import { openInApp } from "@/components/OpenInApp";
 import { isPdf, PdfPreview } from "@/components/PdfPreview";
 import { PostActions } from "@/components/PostActions";
+import { PostImages } from "@/components/PostImages";
 import { SiteHeader } from "@/components/SiteHeader";
-import type { PublicComment, PublicPost } from "@/lib/posts";
+import type { PublicAuthor, PublicComment, PublicPost } from "@/lib/posts";
+import type { SessionUser } from "@/lib/session";
 import { postHref } from "@/lib/site";
 import { track, trackMixpanel } from "@/lib/track";
 
@@ -77,12 +79,94 @@ function Avatar({ author }: { author: { name: string; username: string; imageUrl
   );
 }
 
+type PendingComment = {
+  id: string;
+  text: string;
+  createdAt: string;
+  author: PublicAuthor;
+  parentCommentId?: string;
+  postId: string;
+  knownIds: string[];
+};
+
+function authorFromUser(user: SessionUser): PublicAuthor {
+  return {
+    username: user.username,
+    name: user.name,
+    imageUrl: user.imageUrl,
+    verified: false,
+  };
+}
+
+function collectIds(comments: PublicComment[], into = new Set<string>()) {
+  for (const comment of comments) {
+    if (comment.id) into.add(comment.id);
+    collectIds(comment.replies, into);
+  }
+  return into;
+}
+
+function findNewMatch(
+  comments: PublicComment[],
+  pending: PendingComment,
+  known: Set<string>,
+  used: Set<string>,
+): string | null {
+  for (const comment of comments) {
+    if (
+      comment.id &&
+      !known.has(comment.id) &&
+      !used.has(comment.id) &&
+      comment.text === pending.text &&
+      comment.author.username === pending.author.username
+    ) {
+      return comment.id;
+    }
+    const nested = findNewMatch(comment.replies, pending, known, used);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function openPending(comments: PublicComment[], pending: PendingComment[], postId: string) {
+  const used = new Set<string>();
+  return pending.filter((item) => {
+    if (item.postId !== postId) return false;
+    const match = findNewMatch(comments, item, new Set(item.knownIds), used);
+    if (!match) return true;
+    used.add(match);
+    return false;
+  });
+}
+
+function toPublic(item: PendingComment): PublicComment {
+  return {
+    id: item.id,
+    text: item.text,
+    createdAt: item.createdAt,
+    author: item.author,
+    replies: [],
+  };
+}
+
+function mergeComments(comments: PublicComment[], pending: PendingComment[]): PublicComment[] {
+  const attach = (list: PublicComment[]): PublicComment[] =>
+    list.map((comment) => ({
+      ...comment,
+      replies: [
+        ...pending.filter((item) => item.parentCommentId === comment.id).map(toPublic),
+        ...attach(comment.replies),
+      ],
+    }));
+  return [...pending.filter((item) => !item.parentCommentId).map(toPublic), ...attach(comments)];
+}
+
 function CommentRow({
   comment,
   onReply,
 }: {
   comment: PublicComment;
-  onReply: (comment: PublicComment, text: string) => void;
+  onReply: (comment: PublicComment, text: string) => boolean;
 }) {
   const [draft, setDraft] = useState("");
   const [open, setOpen] = useState(false);
@@ -90,8 +174,9 @@ function CommentRow({
   const name = displayName(comment.author);
   const replies = showReplies ? comment.replies : comment.replies.slice(0, 1);
   const hiddenReplies = comment.replies.length - replies.length;
+  const pending = comment.id.startsWith("pending-");
   return (
-    <li className="flex gap-3">
+    <li className={`flex gap-3 ${pending ? "opacity-80" : ""}`}>
       <Avatar author={comment.author} />
       <div className="min-w-0 flex-1">
         <p className="text-sm">
@@ -100,13 +185,15 @@ function CommentRow({
           <span className="text-muted"> · {formatWhen(comment.createdAt)}</span>
         </p>
         <p className="mt-1 text-sm leading-5 whitespace-pre-wrap">{comment.text}</p>
-        <button
-          type="button"
-          className="text-muted mt-1 text-xs font-medium"
-          onClick={() => setOpen(true)}
-        >
-          Reply
-        </button>
+        {pending ? null : (
+          <button
+            type="button"
+            className="text-muted mt-1 text-xs font-medium"
+            onClick={() => setOpen(true)}
+          >
+            Reply
+          </button>
+        )}
         {open ? (
           <form
             className="mt-2 flex gap-2"
@@ -114,7 +201,7 @@ function CommentRow({
               event.preventDefault();
               const text = draft.trim();
               if (!text) return;
-              onReply(comment, text);
+              if (!onReply(comment, text)) return;
               setDraft("");
               setOpen(false);
             }}
@@ -157,12 +244,28 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
   const [liked, setLiked] = useState(post.liked);
   const [likeCount, setLikeCount] = useState(post.likes);
   const [draft, setDraft] = useState("");
+  const [pendingComments, setPendingComments] = useState<PendingComment[]>([]);
+  const [notice, setNotice] = useState("");
   const [showAllComments, setShowAllComments] = useState(false);
+  const likedRef = useRef(post.liked);
+  const likeCountRef = useRef(post.likes);
+  const likePending = useRef(false);
+  const commentPending = useRef(new Set<string>());
 
   useEffect(() => {
+    if (likePending.current) return;
+    likedRef.current = post.liked;
+    likeCountRef.current = post.likes;
     setLiked(post.liked);
     setLikeCount(post.likes);
   }, [post.postId, post.liked, post.likes]);
+
+  useEffect(() => {
+    setPendingComments((current) => {
+      const next = openPending(post.comments, current, post.postId);
+      return next.length === current.length ? current : next;
+    });
+  }, [post.postId, post.comments]);
 
   useEffect(() => {
     const now = Date.now();
@@ -172,53 +275,135 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
     track("post_viewed", { postId: post.postId });
   }, [post.postId]);
 
-  function finish(next: WebAction, actionError: string | null, isLiked?: boolean) {
-    if (next.type === "like" && !actionError) {
-      const nextLiked = typeof isLiked === "boolean" ? isLiked : !liked;
-      setLikeCount((count) => Math.max(0, count + (nextLiked === liked ? 0 : nextLiked ? 1 : -1)));
-      setLiked(nextLiked);
+  function setLike(nextLiked: boolean, nextCount: number) {
+    likedRef.current = nextLiked;
+    likeCountRef.current = nextCount;
+    setLiked(nextLiked);
+    setLikeCount(nextCount);
+  }
+
+  function applyConfirmed(next: WebAction, actionError: string | null, isLiked?: boolean) {
+    if (actionError) {
+      setNotice(actionError);
+      return;
+    }
+    setNotice("");
+    if (next.type === "like") {
+      const nextLiked = typeof isLiked === "boolean" ? isLiked : !likedRef.current;
+      const nextCount = Math.max(0, likeCountRef.current + (nextLiked === likedRef.current ? 0 : nextLiked ? 1 : -1));
+      setLike(nextLiked, nextCount);
       if (nextLiked) trackMixpanel("post_liked", { postId: post.postId });
     }
-    if (next.type === "comment" && !actionError) setDraft("");
+    if (next.type === "comment") setDraft("");
     router.refresh();
   }
 
-  async function ask(next: WebAction) {
+  function beginOptimistic(next: WebAction) {
+    if (next.type === "like") {
+      const previousLiked = likedRef.current;
+      const previousCount = likeCountRef.current;
+      const nextLiked = !previousLiked;
+      setLike(nextLiked, Math.max(0, previousCount + (nextLiked ? 1 : -1)));
+      return {
+        rollback(message?: string) {
+          setLike(previousLiked, previousCount);
+          if (message) setNotice(message);
+        },
+        confirm(isLiked?: boolean) {
+          if (typeof isLiked === "boolean" && isLiked !== likedRef.current) {
+            setLike(isLiked, Math.max(0, likeCountRef.current + (isLiked ? 1 : -1)));
+          }
+          if (likedRef.current) trackMixpanel("post_liked", { postId: post.postId });
+        },
+      };
+    }
+    if (next.type !== "comment" || !user) return null;
+    const pendingId = `pending-${crypto.randomUUID()}`;
+    const pending: PendingComment = {
+      id: pendingId,
+      text: next.text,
+      createdAt: new Date().toISOString(),
+      author: authorFromUser(user),
+      parentCommentId: next.parentCommentId,
+      postId: post.postId,
+      knownIds: [...collectIds(post.comments)],
+    };
+    setPendingComments((current) => [pending, ...current]);
+    if (!next.parentCommentId) setDraft("");
+    return {
+      rollback(message?: string) {
+        setPendingComments((current) => current.filter((item) => item.id !== pendingId));
+        if (!next.parentCommentId) setDraft((current) => current || next.text);
+        setNotice(message || "Couldn't post that comment.");
+      },
+      confirm(_isLiked?: boolean) {
+        router.refresh();
+      },
+    };
+  }
+
+  function ask(next: WebAction) {
     if (user && next.type === "continue") {
       openInApp(post.postId);
-      return;
+      return false;
     }
-    if (user) {
-      const response = await fetch("/api/auth/action", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pendingPostId: post.postId, action: next }),
+    const appNote = "Your number is on Aspirant Adda. Open the app to pick up this post.";
+    if (!user) {
+      login({
+        pendingPostId: post.postId,
+        action: next,
+        openApp: next.type === "continue",
+        appNote,
+        onDone: (result) => applyConfirmed(next, result.actionError),
       });
-      if (response.status === 401) {
-        login({
-          pendingPostId: post.postId,
-          action: next,
-          appNote: "Your number is on Aspirant Adda. Open the app to pick up this post.",
-          onDone: (result) => finish(next, result.actionError),
-        });
-        return;
-      }
-      const data = (await response.json()) as { actionError?: string | null; isLiked?: boolean };
-      finish(next, data.actionError ?? null, data.isLiked);
-      return;
+      return false;
     }
-    login({
-      pendingPostId: post.postId,
-      action: next,
-      openApp: next.type === "continue",
-      appNote: "Your number is on Aspirant Adda. Open the app to pick up this post.",
-      onDone: (result) => finish(next, result.actionError),
-    });
+    if (next.type === "like" && likePending.current) return true;
+    if (next.type === "like") likePending.current = true;
+    const commentKey = next.type === "comment" ? `${next.parentCommentId ?? ""}:${next.text}` : "";
+    if (commentKey && commentPending.current.has(commentKey)) return true;
+    if (commentKey) commentPending.current.add(commentKey);
+    const optimistic = beginOptimistic(next);
+    void (async () => {
+      try {
+        const response = await fetch("/api/auth/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pendingPostId: post.postId, action: next }),
+        });
+        if (response.status === 401) {
+          optimistic?.rollback();
+          login({
+            pendingPostId: post.postId,
+            action: next,
+            appNote,
+            onDone: (result) => applyConfirmed(next, result.actionError),
+          });
+          return;
+        }
+        const data = (await response.json().catch(() => ({}))) as { actionError?: string | null; isLiked?: boolean };
+        if (!response.ok || data.actionError) {
+          optimistic?.rollback(data.actionError || "Couldn't update. Try again.");
+          return;
+        }
+        setNotice("");
+        optimistic?.confirm(data.isLiked);
+      } catch {
+        optimistic?.rollback("Couldn't update. Try again.");
+      } finally {
+        if (next.type === "like") likePending.current = false;
+        if (commentKey) commentPending.current.delete(commentKey);
+      }
+    })();
+    return Boolean(optimistic);
   }
 
   const name = displayName(post.author);
   const href = postHref(post);
-  const visibleComments = showAllComments ? post.comments : post.comments.slice(0, 10);
+  const activePending = openPending(post.comments, pendingComments, post.postId);
+  const comments = mergeComments(post.comments, activePending);
+  const visibleComments = showAllComments ? comments : comments.slice(0, 10);
+  const commentCount = post.commentCount + activePending.length;
 
   return (
     <div className="min-h-screen w-full">
@@ -260,12 +445,11 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
         {post.title ? <h1 className="text-heading mt-3 text-lg leading-6 font-bold">{post.title}</h1> : null}
         <p className={`${post.title ? "mt-2" : "mt-3"} text-sm leading-5 whitespace-pre-wrap`}>{post.text}</p>
 
-        {post.attachments.length ? (
+        <PostImages attachments={post.attachments} expandable className="mt-3" />
+        {post.attachments.some((item) => item.type !== "image") ? (
           <div className="mt-3 space-y-2">
             {post.attachments.map((item) => {
-              if (item.type === "image") {
-                return <img key={item.url} src={item.url} alt="" className="block h-auto max-w-full rounded-xl" />;
-              }
+              if (item.type === "image") return null;
               if (item.type === "video") {
                 return <video key={item.url} src={item.url} controls className="w-full rounded-xl" />;
               }
@@ -298,7 +482,7 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
 
         <PostActions
           likes={likeCount}
-          commentCount={post.commentCount}
+          commentCount={commentCount}
           liked={liked}
           href={href}
           postId={post.postId}
@@ -316,6 +500,7 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
             ask({ type: "comment", text });
           }}
         >
+          {notice ? <p className="text-danger mb-2 text-sm">{notice}</p> : null}
           <label className="text-heading text-sm font-bold" htmlFor="comment">
             Add a comment
           </label>
@@ -341,7 +526,7 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
             />
           ))}
         </ul>
-        {post.comments.length > visibleComments.length ? (
+        {comments.length > visibleComments.length ? (
           <button
             type="button"
             className="text-muted mt-4 text-sm font-medium"
