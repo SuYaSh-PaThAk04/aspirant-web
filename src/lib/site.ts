@@ -1,5 +1,11 @@
+const PRODUCTION_ORIGIN = "https://www.aspirantadda.com";
+
 export function siteUrl() {
   return (process.env.PUBLIC_SITE_URL || "http://localhost:3001").replace(/\/$/, "");
+}
+
+export function publicSiteUrl() {
+  return (process.env.PUBLIC_SITE_URL || PRODUCTION_ORIGIN).replace(/\/$/, "");
 }
 
 export function channelPath(id: string) {

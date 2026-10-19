@@ -1,11 +1,9 @@
 import type { MetadataRoute } from "next";
 import { listChannels } from "@/lib/channels";
 import { listSitemapPosts } from "@/lib/posts";
-import { channelPath, feedPostPath } from "@/lib/site";
+import { channelPath, feedPostPath, publicSiteUrl } from "@/lib/site";
 
 export const revalidate = 3600;
-
-const PRODUCTION_ORIGIN = "https://www.aspirantadda.com";
 
 const staticPages: {
   path: string;
@@ -20,12 +18,8 @@ const staticPages: {
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
 ];
 
-function origin() {
-  return (process.env.PUBLIC_SITE_URL || PRODUCTION_ORIGIN).replace(/\/$/, "");
-}
-
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = origin();
+  const baseUrl = publicSiteUrl();
   const lastModified = new Date();
 
   const pages: MetadataRoute.Sitemap = staticPages.map((page) => ({
