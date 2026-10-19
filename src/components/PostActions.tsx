@@ -1,18 +1,40 @@
 "use client";
 
+import { useState } from "react";
 import { Heart, MessageCircle, Share2 } from "lucide-react";
 import Link from "next/link";
 import { track } from "@/lib/track";
-function sharePost(path: string, postId: string) {
+
+async function sharePost(path: string, postId: string) {
   const url = new URL(path, window.location.origin).toString();
   const shared = () => {
     if (postId) track("post_shared", { path, postId });
   };
   if (navigator.share) {
-    void navigator.share({ url }).then(shared).catch(() => undefined);
-    return;
+    try {
+      await navigator.share({ url });
+      shared();
+      return "shared" as const;
+    } catch {
+      return "cancelled" as const;
+    }
   }
-  void navigator.clipboard.writeText(url).then(shared).catch(() => undefined);
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch {
+    const input = document.createElement("textarea");
+    input.value = url;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+    document.body.append(input);
+    input.select();
+    const ok = document.execCommand("copy");
+    input.remove();
+    if (!ok) return "cancelled" as const;
+  }
+  shared();
+  return "copied" as const;
 }
 
 export function PostActions({
@@ -22,6 +44,8 @@ export function PostActions({
   href,
   postId,
   onLike,
+  onComment,
+  commentOpen = false,
   variant = "inline",
 }: {
   likes: number;
@@ -30,10 +54,13 @@ export function PostActions({
   href: string;
   postId: string;
   onLike?: () => void;
+  onComment?: () => void;
+  commentOpen?: boolean;
   variant?: "inline" | "pills";
 }) {
   const commentHref = `${href}#comments`;
   const pills = variant === "pills";
+  const [copied, setCopied] = useState(false);
   const itemClass = pills
     ? "border-line bg-sunken text-muted inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium"
     : "text-muted inline-flex items-center gap-1.5 text-sm font-medium";
@@ -52,13 +79,33 @@ export function PostActions({
           {likes}
         </Link>
       )}
-      <Link href={commentHref} className={itemClass}>
-        <MessageCircle size={18} />
-        {commentCount}
-      </Link>
-      <button type="button" onClick={() => sharePost(href, postId)} className={itemClass} aria-label="Share">
+      {onComment ? (
+        <button type="button" onClick={onComment} aria-expanded={commentOpen} className={itemClass}>
+          <MessageCircle size={18} />
+          {commentCount}
+        </button>
+      ) : (
+        <Link href={commentHref} className={itemClass}>
+          <MessageCircle size={18} />
+          {commentCount}
+        </Link>
+      )}
+      <button
+        type="button"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void sharePost(href, postId).then((result) => {
+            if (result !== "copied") return;
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 2000);
+          });
+        }}
+        className={itemClass}
+        aria-label={copied ? "Link copied" : "Share"}
+      >
         <Share2 size={18} />
-        {pills ? "Share" : null}
+        {copied ? "Copied" : pills ? "Share" : null}
       </button>
     </div>
   );
