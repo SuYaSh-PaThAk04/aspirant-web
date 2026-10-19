@@ -93,7 +93,7 @@ const HOME_LIMIT = 30;
 const RELATED_LIMIT = 8;
 const SITEMAP_LIMIT = 5000;
 const SITEMAP_BATCH = 400;
-const PUBLIC_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const PUBLIC_SLUG = /^[a-z0-9]+(?:[_-][a-z0-9]+)*$/;
 
 const publicFilter = {
   "decision.should_index": true,
@@ -479,7 +479,7 @@ export async function getPostSlug(postId: string) {
 
 export const getPublicPostBySlug = cache(async (slug: string, viewerId?: string | null) => {
   const clean = slug.trim().toLowerCase();
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(clean)) return null;
+  if (!PUBLIC_SLUG.test(clean)) return null;
   const db = await getDb();
   const message = await db.collection<PostDoc>("room_messages").findOne({ slug: clean, ...liveMatch });
   if (!message) return null;
