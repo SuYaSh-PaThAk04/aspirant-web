@@ -7,12 +7,15 @@ import { Users } from "lucide-react";
 import { AppBanner, OpenAppPopup } from "@/components/AppBanner";
 import { useAuth } from "@/components/AuthProvider";
 import { JoinPanel } from "@/components/JoinPanel";
+import type { WebAction } from "@/components/LoginSheet";
 import { PostActions } from "@/components/PostActions";
+import { PostImages } from "@/components/PostImages";
 import { FeedCardSkeleton } from "@/components/Shimmer";
 import { SiteHeader } from "@/components/SiteHeader";
 import type { PublicChannel } from "@/lib/channels";
 import type { PublicAuthor, PublicPost } from "@/lib/posts";
 import { channelPath, postHref } from "@/lib/site";
+import { trackMixpanel } from "@/lib/track";
 
 function displayName(author: PublicAuthor | null) {
   return author?.name || author?.username || "Aspirant";
@@ -49,12 +52,153 @@ function Avatar({ author, size = "size-10" }: { author: PublicAuthor | null; siz
 }
 
 function FeedCard({ post }: { post: PublicPost }) {
+  const { user, login } = useAuth();
   const name = displayName(post.author);
-  const images = post.attachments.filter((item) => item.type === "image");
+  const href = postHref(post);
+  const [liked, setLiked] = useState(post.liked);
+  const [likeCount, setLikeCount] = useState(post.likes);
+  const [commentCount, setCommentCount] = useState(post.commentCount);
+  const [composing, setComposing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [notice, setNotice] = useState("");
+  const [noticeError, setNoticeError] = useState(false);
+  const box = useRef<HTMLTextAreaElement>(null);
+  const likedRef = useRef(post.liked);
+  const likeCountRef = useRef(post.likes);
+  const likePending = useRef(false);
+  const commentPending = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (composing) box.current?.focus();
+  }, [composing]);
+
+  function setLike(nextLiked: boolean, nextCount: number) {
+    likedRef.current = nextLiked;
+    likeCountRef.current = nextCount;
+    setLiked(nextLiked);
+    setLikeCount(nextCount);
+  }
+
+  function applyConfirmed(next: WebAction, actionError: string | null, isLiked?: boolean) {
+    if (actionError) {
+      setNotice(actionError);
+      setNoticeError(true);
+      return;
+    }
+    if (next.type === "like") {
+      const nextLiked = typeof isLiked === "boolean" ? isLiked : !likedRef.current;
+      const nextCount = Math.max(0, likeCountRef.current + (nextLiked === likedRef.current ? 0 : nextLiked ? 1 : -1));
+      setLike(nextLiked, nextCount);
+      if (nextLiked) trackMixpanel("post_liked", { postId: post.postId });
+      setNotice("");
+      return;
+    }
+    if (next.type === "comment") {
+      setDraft("");
+      setCommentCount((count) => count + 1);
+      setComposing(false);
+      setNotice("Comment posted.");
+      setNoticeError(false);
+    }
+  }
+
+  function beginOptimistic(next: WebAction) {
+    if (next.type === "like") {
+      const previousLiked = likedRef.current;
+      const previousCount = likeCountRef.current;
+      const nextLiked = !previousLiked;
+      setLike(nextLiked, Math.max(0, previousCount + (nextLiked ? 1 : -1)));
+      return {
+        rollback(message?: string) {
+          setLike(previousLiked, previousCount);
+          if (!message) return;
+          setNotice(message);
+          setNoticeError(true);
+        },
+        confirm(isLiked?: boolean) {
+          if (typeof isLiked === "boolean" && isLiked !== likedRef.current) {
+            setLike(isLiked, Math.max(0, likeCountRef.current + (isLiked ? 1 : -1)));
+          }
+          if (likedRef.current) trackMixpanel("post_liked", { postId: post.postId });
+          setNotice("");
+        },
+      };
+    }
+    if (next.type === "comment") {
+      const previousDraft = next.text;
+      setDraft("");
+      setComposing(false);
+      setCommentCount((count) => count + 1);
+      return {
+        rollback(message?: string) {
+          setDraft((current) => current || previousDraft);
+          setComposing(true);
+          setCommentCount((count) => Math.max(0, count - 1));
+          setNotice(message || "Couldn't post that comment.");
+          setNoticeError(true);
+        },
+        confirm(_isLiked?: boolean) {
+          setNotice("Comment posted.");
+          setNoticeError(false);
+        },
+      };
+    }
+    return null;
+  }
+
+  async function ask(next: WebAction) {
+    setNotice("");
+    setNoticeError(false);
+    const appNote = "Your number is on Aspirant Adda. Open the app to pick up this post.";
+    if (!user) {
+      login({
+        pendingPostId: post.postId,
+        action: next,
+        appNote,
+        onDone: (result) => applyConfirmed(next, result.actionError),
+      });
+      return;
+    }
+    if (next.type === "like" && likePending.current) return;
+    if (next.type === "like") likePending.current = true;
+    const commentKey = next.type === "comment" ? next.text : "";
+    if (commentKey && commentPending.current.has(commentKey)) return;
+    if (commentKey) commentPending.current.add(commentKey);
+    const optimistic = beginOptimistic(next);
+    try {
+      const response = await fetch("/api/auth/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pendingPostId: post.postId, action: next }),
+      });
+      if (response.status === 401) {
+        optimistic?.rollback();
+        login({
+          pendingPostId: post.postId,
+          action: next,
+          appNote,
+          onDone: (result) => applyConfirmed(next, result.actionError),
+        });
+        return;
+      }
+      const data = (await response.json().catch(() => ({}))) as { actionError?: string | null; isLiked?: boolean };
+      if (!response.ok || data.actionError) {
+        optimistic?.rollback(data.actionError || "Couldn't update. Try again.");
+        return;
+      }
+      optimistic?.confirm(data.isLiked);
+    } catch {
+      optimistic?.rollback("Couldn't update. Try again.");
+    } finally {
+      if (next.type === "like") likePending.current = false;
+      if (commentKey) commentPending.current.delete(commentKey);
+    }
+  }
+
   return (
     <li>
       <div className="border-line rounded-2xl border bg-card p-4 shadow-sm">
-        <Link href={postHref(post)} className="block">
+        <Link href={href} className="block">
           <div className="flex gap-3">
             <Avatar author={post.author} />
             <div className="min-w-0">
@@ -71,17 +215,46 @@ function FeedCard({ post }: { post: PublicPost }) {
           </div>
           {post.title ? <h2 className="text-heading mt-3 text-base leading-5 font-bold">{post.title}</h2> : null}
           <p className={`${post.title ? "mt-2" : "mt-3"} text-sm leading-5 whitespace-pre-wrap`}>{post.text}</p>
-          {images.length ? (
-            <img src={images[0].url} alt="" className="mt-3 block h-auto max-w-full rounded-xl" />
-          ) : null}
+          <PostImages attachments={post.attachments} className="mt-3" />
         </Link>
         <PostActions
-          likes={post.likes}
-          liked={post.liked}
-          commentCount={post.commentCount}
-          href={postHref(post)}
+          likes={likeCount}
+          liked={liked}
+          commentCount={commentCount}
+          href={href}
           postId={post.postId}
+          onLike={() => void ask({ type: "like" })}
+          onComment={() => setComposing((open) => !open)}
+          commentOpen={composing}
         />
+        {composing ? (
+          <form
+            className="mt-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const text = draft.trim();
+              if (!text) return;
+              void ask({ type: "comment", text });
+            }}
+          >
+            <textarea
+              ref={box}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={2}
+              placeholder="Join the conversation"
+              className="border-line bg-sunken w-full resize-none rounded-xl border px-3 py-2 text-sm"
+            />
+            <button
+              type="submit"
+              disabled={!draft.trim()}
+              className="bg-accent text-on-primary mt-2 rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50"
+            >
+              Comment
+            </button>
+          </form>
+        ) : null}
+        {notice ? <p className={`${noticeError ? "text-danger" : "text-success"} mt-2 text-sm`}>{notice}</p> : null}
       </div>
     </li>
   );
