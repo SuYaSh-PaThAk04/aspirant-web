@@ -92,6 +92,8 @@ const TIER1 = "post_index_tier1";
 const HOME_LIMIT = 30;
 const RELATED_LIMIT = 8;
 const SITEMAP_LIMIT = 5000;
+const SITEMAP_BATCH = 400;
+const PUBLIC_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const publicFilter = {
   "decision.should_index": true,
@@ -524,17 +526,34 @@ export async function listRelatedPosts(post: PublicPost, viewerId?: string | nul
 
 export async function listSitemapPosts() {
   const db = await getDb();
-  const rows = await db
-    .collection<IndexDoc>(TIER1)
-    .find(publicFilter, { projection: { postId: 1 } })
-    .sort({ indexedAt: -1 })
-    .limit(SITEMAP_LIMIT)
-    .toArray();
-  const posts = await hydrate(rows, "none");
-  return posts.map((post) => ({
-    postId: post.postId,
-    slug: post.slug,
-    text: post.text,
-    createdAt: post.createdAt,
-  }));
+  const collected: { postId: string; slug: string; text: string; createdAt: string | null }[] = [];
+  let skip = 0;
+
+  while (collected.length < SITEMAP_LIMIT) {
+    const rows = await db
+      .collection<IndexDoc>(TIER1)
+      .find(publicFilter, { projection: { postId: 1 } })
+      .sort({ indexedAt: -1 })
+      .skip(skip)
+      .limit(SITEMAP_BATCH)
+      .toArray();
+    if (!rows.length) break;
+    skip += rows.length;
+
+    const posts = await hydrate(rows, "none");
+    for (const post of posts) {
+      const slug = post.slug.trim().toLowerCase();
+      if (!PUBLIC_SLUG.test(slug)) continue;
+      collected.push({
+        postId: post.postId,
+        slug,
+        text: post.text,
+        createdAt: post.createdAt,
+      });
+      if (collected.length >= SITEMAP_LIMIT) break;
+    }
+    if (rows.length < SITEMAP_BATCH) break;
+  }
+
+  return collected;
 }
