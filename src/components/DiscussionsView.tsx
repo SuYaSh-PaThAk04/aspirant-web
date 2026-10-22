@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Users } from "lucide-react";
-import { AppBanner, OpenAppPopup } from "@/components/AppBanner";
+import { OpenAppPopup } from "@/components/AppBanner";
 import { useAuth } from "@/components/AuthProvider";
 import { JoinPanel } from "@/components/JoinPanel";
+import { PostRail } from "@/components/PostRail";
 import type { WebAction } from "@/components/LoginSheet";
 import { PostActions } from "@/components/PostActions";
 import { PostImages } from "@/components/PostImages";
@@ -359,6 +360,7 @@ export function DiscussionsView({
   posts: initialPosts,
   cursor: initialCursor,
   channels,
+  indexed = [],
   unavailable,
   query = "",
   channel = null,
@@ -366,6 +368,7 @@ export function DiscussionsView({
   posts: PublicPost[];
   cursor: string | null;
   channels: PublicChannel[];
+  indexed?: PublicPost[];
   unavailable: boolean;
   query?: string;
   channel?: PublicChannel | null;
@@ -423,13 +426,60 @@ export function DiscussionsView({
     <div className="min-h-screen w-full">
       <SiteHeader discussionTab />
       <OpenAppPopup />
-      <div className="grid w-full gap-3 px-3 py-3 lg:grid-cols-[360px_minmax(0,1fr)_260px]">
-        <aside className="hidden min-w-0 flex-col gap-3 lg:sticky lg:top-16 lg:flex lg:h-[calc(100vh-5.5rem)] lg:self-start">
-          {user ? null : <JoinPanel onContinue={() => login()} />}
-          <AppBanner tall={Boolean(user)} />
+      {user ? null : <JoinPanel onContinue={() => login()} />}
+      <div
+        className={`grid w-full gap-3 px-3 py-3 ${
+          indexed.length ? "lg:grid-cols-[320px_minmax(0,1fr)_320px]" : "lg:grid-cols-[320px_minmax(0,1fr)]"
+        }`}
+      >
+        <aside className="order-2 min-w-0 lg:sticky lg:top-16 lg:order-1 lg:self-start">
+          <h2 className="px-1 text-sm">Communities</h2>
+          <ul className="border-line mt-2 max-h-[calc(100vh-5.5rem)] divide-y divide-line overflow-y-auto rounded-2xl border bg-card">
+            {channels.length === 0 ? (
+              <li className="text-muted px-4 py-3 text-sm">No communities yet.</li>
+            ) : (
+              channels.map((item) => {
+                const href = channelPath(item.id);
+                const active = pathname === href;
+                return (
+                  <li key={item.id} className={`flex items-center gap-2 pr-3 ${active ? "bg-accent-soft" : ""}`}>
+                    <Link href={href} aria-current={active ? "page" : undefined} className="hover:bg-white/5 flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-3">
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt="" className="size-11 shrink-0 rounded-full object-cover" />
+                      ) : (
+                        <span className="bg-accent-soft text-heading flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-bold">
+                          {item.name.slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-heading truncate text-sm font-medium">{item.name}</p>
+                        <p className="text-accent mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium">
+                          <Users size={12} />
+                          {memberLabel(item.memberCount)}
+                        </p>
+                        {item.description ? <p className="text-muted truncate text-xs">{item.description}</p> : null}
+                      </div>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        login({
+                          openApp: true,
+                          appNote: `Your number is on Aspirant Adda. Open the app to join ${item.name}.`,
+                        })
+                      }
+                      className="bg-accent text-on-primary shrink-0 rounded-full px-3 py-1.5 text-xs font-bold"
+                    >
+                      Join
+                    </button>
+                  </li>
+                );
+              })
+            )}
+          </ul>
         </aside>
 
-        <main className="min-w-0">
+        <main className="order-1 min-w-0 lg:order-2">
           <h1 className="px-1 text-2xl tracking-tight">{channel ? channel.name : "Discussions"}</h1>
           <p className="text-muted mt-1 px-1 text-sm">
             {channel
@@ -503,52 +553,7 @@ export function DiscussionsView({
           ) : null}
         </main>
 
-        <aside className="lg:sticky lg:top-16 lg:self-start">
-          <h2 className="px-1 text-sm">Communities</h2>
-          <ul className="border-line mt-2 max-h-[calc(100vh-5.5rem)] divide-y divide-line overflow-y-auto rounded-2xl border bg-card">
-            {channels.length === 0 ? (
-              <li className="text-muted px-4 py-3 text-sm">No communities yet.</li>
-            ) : (
-              channels.map((item) => {
-                const href = channelPath(item.id);
-                const active = pathname === href;
-                return (
-                  <li key={item.id} className={`flex items-center gap-2 pr-3 ${active ? "bg-accent-soft" : ""}`}>
-                    <Link href={href} aria-current={active ? "page" : undefined} className="hover:bg-white/5 flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-3">
-                      {item.imageUrl ? (
-                        <img src={item.imageUrl} alt="" className="size-11 shrink-0 rounded-full object-cover" />
-                      ) : (
-                        <span className="bg-accent-soft text-heading flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-bold">
-                          {item.name.slice(0, 1).toUpperCase()}
-                        </span>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-heading truncate text-sm font-medium">{item.name}</p>
-                        <p className="text-accent mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium">
-                          <Users size={12} />
-                          {memberLabel(item.memberCount)}
-                        </p>
-                        {item.description ? <p className="text-muted truncate text-xs">{item.description}</p> : null}
-                      </div>
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        login({
-                          openApp: true,
-                          appNote: `Your number is on Aspirant Adda. Open the app to join ${item.name}.`,
-                        })
-                      }
-                      className="bg-accent text-on-primary shrink-0 rounded-full px-3 py-1.5 text-xs font-bold"
-                    >
-                      Join
-                    </button>
-                  </li>
-                );
-              })
-            )}
-          </ul>
-        </aside>
+        <PostRail title="Trending on adda" posts={indexed} className="order-3" />
       </div>
     </div>
   );

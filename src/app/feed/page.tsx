@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { currentUser } from "@/lib/current-user";
 import { DiscussionsView } from "@/components/DiscussionsView";
 import { listChannels } from "@/lib/channels";
-import { cleanQuery, listPublicPosts, searchPublicPosts, type PublicPost } from "@/lib/posts";
+import { cleanQuery, listPublicPosts, listTier1Posts, searchPublicPosts, type PublicPost } from "@/lib/posts";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +26,7 @@ export default async function FeedPage({
   let posts: PublicPost[] = [];
   let cursor: string | null = null;
   let channels: Awaited<ReturnType<typeof listChannels>> = [];
+  let indexed: PublicPost[] = [];
   let unavailable = false;
   try {
     const page = query ? await searchPublicPosts(query, null, viewerId) : await listPublicPosts(null, viewerId);
@@ -39,6 +40,11 @@ export default async function FeedPage({
   } catch {
     channels = [];
   }
+  try {
+    indexed = await listTier1Posts(viewerId);
+  } catch {
+    indexed = [];
+  }
 
   return (
     <DiscussionsView
@@ -46,6 +52,7 @@ export default async function FeedPage({
       posts={posts}
       cursor={cursor}
       channels={channels}
+      indexed={indexed}
       unavailable={unavailable}
       query={query}
     />

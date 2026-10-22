@@ -91,6 +91,7 @@ type IndexDoc = Document & {
 const TIER1 = "post_index_tier1";
 const HOME_LIMIT = 30;
 const RELATED_LIMIT = 8;
+const TIER1_RAIL_LIMIT = 8;
 const SITEMAP_LIMIT = 5000;
 const SITEMAP_BATCH = 400;
 const PUBLIC_SLUG = /^[a-z0-9]+(?:[_-][a-z0-9]+)*$/;
@@ -494,6 +495,18 @@ export const getPublicPost = cache(async (postId: string, viewerId?: string | nu
   if (!message) return null;
   return presentMessage(message, viewerId);
 });
+
+export async function listTier1Posts(viewerId?: string | null) {
+  const db = await getDb();
+  const rows = await db
+    .collection<IndexDoc>(TIER1)
+    .find(publicFilter)
+    .sort({ "decision.priority_score": -1, indexedAt: -1 })
+    .limit(TIER1_RAIL_LIMIT + 4)
+    .toArray();
+  const posts = await hydrate(rows, "none", viewerId);
+  return posts.slice(0, TIER1_RAIL_LIMIT);
+}
 
 export async function listRelatedPosts(post: PublicPost, viewerId?: string | null) {
   const values = postIdValues(post.postId);

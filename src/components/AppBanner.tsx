@@ -7,23 +7,6 @@ import { ThemeImage } from "@/components/ThemeImage";
 
 const dismissedKey = "aa-open-app-dismissed";
 
-export function AppBanner({ tall = false }: { tall?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={() => openInApp()}
-      className={`border-line relative hidden w-full overflow-hidden rounded-2xl border bg-sunken text-center shadow-sm lg:block lg:aspect-auto ${
-        tall ? "lg:h-full" : "lg:h-[calc(50vh-3.125rem)]"
-      }`}
-    >
-      <ThemeImage
-        alt="Connecting Aspirants"
-        className="absolute inset-0 h-full w-full object-cover"
-      />
-    </button>
-  );
-}
-
 export function OpenAppPopup() {
   const [open, setOpen] = useState(false);
 

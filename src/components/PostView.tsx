@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Heart, MessageCircle } from "lucide-react";
-import { AppBanner, OpenAppPopup } from "@/components/AppBanner";
+import { ChevronLeft } from "lucide-react";
+import { OpenAppPopup } from "@/components/AppBanner";
 import { useAuth } from "@/components/AuthProvider";
 import { JoinPanel } from "@/components/JoinPanel";
+import { PostRail } from "@/components/PostRail";
 import type { WebAction } from "@/components/LoginSheet";
 import { openInApp } from "@/components/OpenInApp";
 import { isPdf, PdfPreview } from "@/components/PdfPreview";
@@ -409,19 +410,13 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
     <div className="min-h-screen w-full">
       <SiteHeader />
       <OpenAppPopup />
+      {user ? null : <JoinPanel onContinue={() => login()} />}
 
       <div
         className={`grid w-full gap-3 px-3 py-3 ${
-          related.length
-            ? "lg:grid-cols-[360px_minmax(0,1fr)_260px]"
-            : "lg:grid-cols-[360px_minmax(0,1fr)]"
+          related.length ? "lg:grid-cols-[minmax(0,1fr)_260px]" : ""
         }`}
       >
-        <aside className="hidden min-w-0 flex-col gap-3 lg:sticky lg:top-16 lg:flex lg:h-[calc(100vh-5.5rem)] lg:self-start">
-          {user ? null : <JoinPanel onContinue={() => login()} />}
-          <AppBanner tall={Boolean(user)} />
-        </aside>
-
         <div className="min-w-0">
       <article className="border-line rounded-2xl border bg-card p-4 shadow-sm">
         <div className="flex items-start gap-3">
@@ -538,33 +533,7 @@ export function PostView({ post, related }: { post: PublicPost; related: PublicP
       </section>
         </div>
 
-        {related.length ? (
-          <aside className="lg:sticky lg:top-16 lg:self-start">
-            <h2 className="px-1 text-sm">Related posts</h2>
-            <ul className="border-line mt-2 divide-y divide-line overflow-hidden rounded-2xl border bg-card">
-              {related.map((item) => (
-                <li key={item.postId}>
-                  <Link href={postHref(item)} className="block px-4 py-3">
-                    <p className="text-muted truncate text-xs">
-                      {[item.room || displayName(item.author), formatWhen(item.createdAt)].filter(Boolean).join(" · ")}
-                    </p>
-                    <p className="mt-1 line-clamp-3 text-sm leading-5 font-medium">{item.title || item.text}</p>
-                    <p className="text-muted mt-2 flex items-center gap-3 text-xs">
-                      <span className="inline-flex items-center gap-1">
-                        <Heart size={14} className={item.liked ? "fill-like text-like" : undefined} />
-                        {item.likes}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <MessageCircle size={14} />
-                        {item.commentCount}
-                      </span>
-                    </p>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </aside>
-        ) : null}
+        <PostRail title="Related posts" posts={related} />
       </div>
     </div>
   );

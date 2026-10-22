@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { currentUser } from "@/lib/current-user";
 import { DiscussionsView } from "@/components/DiscussionsView";
 import { getChannel, listChannels, type PublicChannel } from "@/lib/channels";
-import { listChannelPosts, type PublicPost } from "@/lib/posts";
+import { listChannelPosts, listTier1Posts, type PublicPost } from "@/lib/posts";
 
 export const dynamic = "force-dynamic";
 
@@ -35,12 +35,14 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
   let posts: PublicPost[] = [];
   let cursor: string | null = null;
   let channels: Awaited<ReturnType<typeof listChannels>> = [];
+  let indexed: PublicPost[] = [];
   let unavailable = false;
+  const viewerId = (await currentUser())?.id ?? null;
   if (lookupFailed || !channel) {
     unavailable = true;
   } else {
     try {
-      const page = await listChannelPosts(channel.id, null, (await currentUser())?.id ?? null);
+      const page = await listChannelPosts(channel.id, null, viewerId);
       posts = page.posts;
       cursor = page.cursor;
     } catch {
@@ -52,6 +54,11 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
   } catch {
     channels = [];
   }
+  try {
+    indexed = await listTier1Posts(viewerId);
+  } catch {
+    indexed = [];
+  }
 
   return (
     <DiscussionsView
@@ -59,6 +66,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ id: st
       posts={posts}
       cursor={cursor}
       channels={channels}
+      indexed={indexed}
       unavailable={unavailable}
       channel={channel}
     />
