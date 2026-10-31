@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans } from "next/font/google";
+import Script from "next/script";
 import { Analytics } from "@/components/Analytics";
 import { AuthProvider } from "@/components/AuthProvider";
 import { siteUrl } from "@/lib/site";
@@ -30,6 +31,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               "try{var t=localStorage.getItem('aa-theme');document.documentElement.dataset.theme=t==='light'?'light':'dark'}catch(e){document.documentElement.dataset.theme='dark'}",
           }}
         />
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-KSMMSNBCVZ"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-KSMMSNBCVZ');
+          `}
+        </Script>
         <AuthProvider>
           <Analytics />
           {children}

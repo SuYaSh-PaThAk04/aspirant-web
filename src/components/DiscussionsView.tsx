@@ -261,6 +261,10 @@ function FeedCard({ post }: { post: PublicPost }) {
   );
 }
 
+const POST_STARTER = "Post what you're studying";
+const POST_TEXT_MAX = 4000 * 3;
+const POST_TITLE_MAX = 100;
+
 function PostComposer({
   channels,
   defaultRoomId,
@@ -271,7 +275,8 @@ function PostComposer({
   onCreated: (post: PublicPost) => void;
 }) {
   const { user } = useAuth();
-  const [text, setText] = useState("");
+  const [title, setTitle] = useState("");
+  const [text, setText] = useState(POST_STARTER);
   const tapri = channels.find((item) => item.name.trim().toLowerCase() === "aspirant tapri");
   const [roomId, setRoomId] = useState(defaultRoomId || tapri?.id || "");
   const [busy, setBusy] = useState(false);
@@ -296,14 +301,15 @@ function PostComposer({
       const response = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, roomId }),
+        body: JSON.stringify({ text, title, roomId }),
       });
       const data = (await response.json()) as { post?: PublicPost; message?: string };
       if (!response.ok || !data.post) {
         setError(data.message || "Could not create the post.");
         return;
       }
-      setText("");
+      setTitle("");
+      setText(POST_STARTER);
       setNotice("Posted.");
       onCreated(data.post);
     } catch {
@@ -333,7 +339,7 @@ function PostComposer({
         </label>
         <button
           type="submit"
-          disabled={busy || !text.trim() || !roomId}
+          disabled={busy || (!text.trim() && !title.trim()) || !roomId}
           className="bg-accent text-on-primary rounded-full px-4 py-1.5 text-sm font-bold whitespace-nowrap disabled:opacity-50"
         >
           {busy ? "Posting" : "Post"}
@@ -341,14 +347,22 @@ function PostComposer({
       </div>
       <div className="flex gap-3">
         <Avatar author={author} />
-        <textarea
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          placeholder="Start a discussion"
-          rows={2}
-          maxLength={4000}
-          className="border-line placeholder:text-muted focus:border-accent bg-sunken w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none"
-        />
+        <div className="flex w-full min-w-0 flex-col gap-2">
+          <input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Title (optional)"
+            maxLength={POST_TITLE_MAX}
+            className="border-line placeholder:text-muted placeholder:font-normal focus:border-accent bg-sunken w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none"
+          />
+          <textarea
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            rows={2}
+            maxLength={POST_TEXT_MAX}
+            className="border-line placeholder:text-muted focus:border-accent bg-sunken w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none"
+          />
+        </div>
       </div>
       {error ? <p className="text-danger mt-2 text-sm">{error}</p> : null}
       {notice ? <p className="text-success mt-2 text-sm">{notice}</p> : null}

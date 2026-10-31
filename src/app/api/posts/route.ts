@@ -2,7 +2,8 @@ import { currentUser } from "@/lib/current-user";
 import { createPost, listChannelPosts, listPublicPosts, searchPublicPosts } from "@/lib/posts";
 
 const idPattern = /^[a-f0-9]{24}$/i;
-const TEXT_MAX = 4000;
+const TEXT_MAX = 4000 * 3;
+const TITLE_MAX = 100;
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -29,15 +30,17 @@ export async function POST(request: Request) {
   const user = await currentUser();
   if (!user) return Response.json({ message: "Log in to post." }, { status: 401 });
 
-  const body = (await request.json().catch(() => null)) as { text?: unknown; roomId?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { text?: unknown; title?: unknown; roomId?: unknown } | null;
   const text = typeof body?.text === "string" ? body.text.trim() : "";
+  const title = typeof body?.title === "string" ? body.title.trim() : "";
   const roomId = typeof body?.roomId === "string" ? body.roomId.trim() : "";
-  if (!text) return Response.json({ message: "Write something to post." }, { status: 400 });
+  if (!text && !title) return Response.json({ message: "Write something to post." }, { status: 400 });
   if (text.length > TEXT_MAX) return Response.json({ message: "That post is too long." }, { status: 400 });
+  if (title.length > TITLE_MAX) return Response.json({ message: "That title is too long." }, { status: 400 });
   if (!idPattern.test(roomId)) return Response.json({ message: "Choose a community." }, { status: 400 });
 
   try {
-    const post = await createPost({ roomId, senderId: user.id, text });
+    const post = await createPost({ roomId, senderId: user.id, text, title });
     if (!post) return Response.json({ message: "That community is not available." }, { status: 404 });
     return Response.json({ post }, { status: 201 });
   } catch (error) {

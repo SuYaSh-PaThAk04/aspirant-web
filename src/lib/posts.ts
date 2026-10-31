@@ -412,7 +412,7 @@ export async function listChannelPosts(roomId: string, cursor?: string | null, v
   return listMessages({ roomId: { $in: [String(id), id] } }, cursor, false, viewerId);
 }
 
-export async function createPost(input: { roomId: string; senderId: string; text: string }): Promise<PublicPost | null> {
+export async function createPost(input: { roomId: string; senderId: string; text: string; title?: string }): Promise<PublicPost | null> {
   const senderId = asObjectId(input.senderId);
   const roomId = asObjectId(input.roomId);
   if (!senderId || !roomId) return null;
@@ -427,6 +427,7 @@ export async function createPost(input: { roomId: string; senderId: string; text
   const inserted = await db.collection<PostDoc>("room_messages").insertOne({
     roomId: String(roomId),
     senderId: String(senderId),
+    title: input.title?.trim() ?? "",
     text: input.text,
     createdAt: now,
     updatedAt: now,
